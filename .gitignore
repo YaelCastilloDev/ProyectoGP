@@ -45,3 +45,11 @@ yarn-error.log*
 # Logs
 logs/
 *.log
+
+# SQLite databases
+*.db
+*.db-shm
+*.db-wal
+
+# Aerich
+aerich.ini
