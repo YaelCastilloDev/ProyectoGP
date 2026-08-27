@@ -21,8 +21,8 @@ ver `.env.example`.
 - `src/lib/api.js` — única frontera HTTP (axios) + helpers por recurso.
 - `src/context/store-context.jsx` — tiendas y tienda activa (compartida).
 - `src/components/` — shell (sidebar, header, chart, tabla genérica) y `ui/` (shadcn).
-- `src/sections/` — Dashboard, Productos, Ventas, Compras, Recomendaciones, Reglas,
-  Evaluación.
+- `src/sections/` — Dashboard, Productos, Ventas, Compras (incluye sugerencias del
+  recomendador), Reglas, Evaluación.
 
 ## shadcn
 

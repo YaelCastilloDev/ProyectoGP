@@ -71,10 +71,11 @@ npm run dev
 Secciones del panel (ver `frontend/src/sections/`): **Dashboard** (tarjetas de
 resumen + ventas por fecha + ventas recientes), **Productos** (CRUD de catálogo),
 **Ventas** (historial por tienda + importación), **Compras** (ticket multi-línea con
-recibo), **Recomendaciones** (carrito → top-K explicable), **Reglas** (boost/block,
-pesos del blend, parejas descubiertas) y **Evaluación** (reporte offline). El selector
-de tienda del sidebar y el del header comparten el estado (`store-context.jsx`), y
-toda mutación muestra un toast con el mensaje de éxito o el `detail` del error.
+recibo y sugerencias top-K explicables que se generan solas al elegir productos),
+**Reglas** (boost/block, pesos del blend, parejas descubiertas) y **Evaluación**
+(reporte offline). El selector de tienda del sidebar comparte el estado con la app
+(`store-context.jsx`), y toda mutación muestra un toast con el mensaje de éxito o
+el `detail` del error. `/recomendaciones` redirige a `/compras`.
 
 ### 4. Cargar datos vía endpoints de negocio (alternativa al seed CLI)
 
@@ -252,19 +253,23 @@ frontend/src/
 ├── context/store-context.jsx  # tiendas + tienda activa (compartida en toda la app)
 ├── components/
 │   ├── app-sidebar.jsx        # sidebar: marca, selector de tienda, navegación
-│   ├── site-header.jsx        # breadcrumb + selector de tienda
+│   ├── site-header.jsx        # título de sección
 │   ├── sales-chart.jsx        # ventas por fecha (7d/30d/todo)
 │   ├── data-table.jsx         # tabla genérica con paginación
 │   └── ui/                    # componentes shadcn generados (JSX)
 ├── sections/                  # Dashboard, Productos, Ventas, Compras,
-│                              # Recomendaciones, Reglas, Evaluación
+│                              # Reglas, Evaluación (Recomendaciones vive
+│                              # dentro de Compras)
 └── App.jsx / main.jsx         # shell (SidebarProvider + rutas) + Toaster
 ```
 
 Comportamiento:
 
-- Selector de tienda global (sidebar y header); la tienda activa se persiste en
+- Selector de tienda global (sidebar); la tienda activa se persiste en
   `localStorage`. "Nueva tienda" crea una vía `POST /api/stores`.
+- En Compras, al elegir productos del ticket se generan solas las sugerencias
+  (top-5 explicable) con botón para agregarlas al ticket. `/recomendaciones` redirige
+  a `/compras`.
 - Todas las mutaciones (CRUD de productos, compras, import de ventas, reglas, pesos)
   muestran toasts sonner: éxito o el `detail` del error del backend (p. ej. el 409 de
   stock insuficiente en compras).

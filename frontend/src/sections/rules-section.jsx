@@ -37,6 +37,27 @@ import {
 import { PlusIcon, SparklesIcon, Trash2Icon } from 'lucide-react'
 import { toast } from 'sonner'
 
+const weightFields = [
+  {
+    key: 'w_cooccurrence',
+    id: 'w-cooc',
+    label: 'Comprados juntos',
+    help: 'Productos que suelen comprarse en la misma venta.',
+  },
+  {
+    key: 'w_content',
+    id: 'w-content',
+    label: 'Atributos similares',
+    help: 'Productos parecidos por nombre, categoría o material.',
+  },
+  {
+    key: 'w_popularity',
+    id: 'w-pop',
+    label: 'Más vendidos',
+    help: 'Los productos más vendidos de la tienda.',
+  },
+]
+
 export function RulesSection() {
   const { stores, activeStore } = useStore()
   const [rules, setRules] = React.useState([])
@@ -138,7 +159,7 @@ export function RulesSection() {
         w_popularity: Number(weights.w_popularity) || 0,
       }
       await saveWeights(activeStore.id, payload)
-      toast.success('Pesos del blend actualizados')
+      toast.success('Preferencias guardadas')
     } catch (err) {
       toast.error(getErrorDetail(err))
     } finally {
@@ -149,7 +170,7 @@ export function RulesSection() {
   const ruleColumns = [
     {
       key: 'target',
-      header: 'Producto objetivo',
+      header: 'Producto',
       render: (rule) => (
         <div className="flex flex-col">
           <span className="font-medium">{rule.target_nombre}</span>
@@ -159,7 +180,7 @@ export function RulesSection() {
     },
     {
       key: 'source',
-      header: 'Origen',
+      header: 'Se aplica cuando lleva',
       render: (rule) =>
         rule.source_sku ? (
           <div className="flex flex-col">
@@ -167,7 +188,7 @@ export function RulesSection() {
             <span className="font-mono text-xs text-muted-foreground">{rule.source_sku}</span>
           </div>
         ) : (
-          <span className="text-muted-foreground">Cualquier producto</span>
+          <span className="text-muted-foreground">Siempre</span>
         ),
     },
     {
@@ -185,17 +206,20 @@ export function RulesSection() {
       header: 'Acción',
       render: (rule) => (
         <Badge variant={rule.action === 'block' ? 'destructive' : 'default'}>
-          {rule.action === 'block' ? 'bloquear' : 'impulsar'}
+          {rule.action === 'block' ? 'Bloquear' : 'Impulsar'}
         </Badge>
       ),
     },
     {
       key: 'weight',
-      header: 'Peso',
+      header: 'Fuerza del impulso',
       className: 'text-right',
-      render: (rule) => (
-        <span className="tabular-nums">{rule.action === 'boost' ? rule.weight : '—'}</span>
-      ),
+      render: (rule) =>
+        rule.action === 'boost' ? (
+          <span className="tabular-nums">×{rule.weight}</span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
     },
     {
       key: 'note',
@@ -227,7 +251,8 @@ export function RulesSection() {
         <div>
           <h2 className="text-lg font-semibold">Reglas de recomendación</h2>
           <p className="text-sm text-muted-foreground">
-            Lo que la empresa ajusta sobre lo que el sistema aprende
+            Ajusta el recomendador a tu negocio: impulsa o bloquea productos y define cuánto
+            influye cada factor en las sugerencias.
           </p>
         </div>
         <Button onClick={openCreate}>
@@ -244,74 +269,52 @@ export function RulesSection() {
         <DataTable
           columns={ruleColumns}
           data={rules}
-          emptyMessage="No hay reglas explícitas. Crea la primera para ajustar el recomendador."
+          emptyMessage="Aún no hay reglas. Crea la primera para controlar qué productos se impulsan o bloquean."
         />
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Pesos del blend</CardTitle>
+            <CardTitle>Importancia de cada factor</CardTitle>
             <CardDescription>
-              {activeStore ? `Configuración de ${activeStore.nombre}` : 'Selecciona una tienda'}
+              Cuánto influye cada señal en las recomendaciones
+              {activeStore ? ` de ${activeStore.nombre}` : ''}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {activeStore && weights ? (
               <form onSubmit={handleSaveWeights} className="flex flex-col gap-4">
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="w-cooc">Co-ocurrencia</Label>
-                    <Input
-                      id="w-cooc"
-                      type="number"
-                      min="0"
-                      step="0.1"
-                      value={weights.w_cooccurrence}
-                      onChange={(e) =>
-                        setWeights((current) => ({
-                          ...current,
-                          w_cooccurrence: e.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="w-content">Contenido</Label>
-                    <Input
-                      id="w-content"
-                      type="number"
-                      min="0"
-                      step="0.1"
-                      value={weights.w_content}
-                      onChange={(e) =>
-                        setWeights((current) => ({ ...current, w_content: e.target.value }))
-                      }
-                    />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="w-pop">Popularidad</Label>
-                    <Input
-                      id="w-pop"
-                      type="number"
-                      min="0"
-                      step="0.1"
-                      value={weights.w_popularity}
-                      onChange={(e) =>
-                        setWeights((current) => ({ ...current, w_popularity: e.target.value }))
-                      }
-                    />
-                  </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  {weightFields.map((field) => (
+                    <div key={field.key} className="flex flex-col gap-2">
+                      <Label htmlFor={field.id}>{field.label}</Label>
+                      <Input
+                        id={field.id}
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={weights[field.key]}
+                        onChange={(e) =>
+                          setWeights((current) => ({
+                            ...current,
+                            [field.key]: e.target.value,
+                          }))
+                        }
+                      />
+                      <p className="text-xs text-muted-foreground">{field.help}</p>
+                    </div>
+                  ))}
                 </div>
                 <div className="flex justify-end">
                   <Button type="submit" disabled={savingWeights}>
-                    {savingWeights ? 'Guardando…' : 'Guardar pesos'}
+                    {savingWeights ? 'Guardando…' : 'Guardar'}
                   </Button>
                 </div>
               </form>
             ) : (
               <div className="text-sm text-muted-foreground">
-                Sin tienda seleccionada para cargar los pesos.
+                Selecciona una tienda para ajustar sus preferencias.
               </div>
             )}
           </CardContent>
@@ -321,10 +324,10 @@ export function RulesSection() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <SparklesIcon className="size-4" />
-              Parejas descubiertas
+              Relaciones descubiertas
             </CardTitle>
             <CardDescription>
-              Co-ocurrencia (lift) y similitud de contenido para {activeStore?.nombre ?? 'la tienda'}
+              Patrones detectados en las ventas. Conviértelos en reglas con un clic.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
@@ -333,10 +336,15 @@ export function RulesSection() {
             ) : (
               <>
                 <div className="flex flex-col gap-2">
-                  <div className="text-sm font-medium">Co-ocurrencia</div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-sm font-medium">Se compran juntos</span>
+                    <span className="text-xs text-muted-foreground">
+                      en las mismas ventas, con más frecuencia de lo esperado
+                    </span>
+                  </div>
                   {pairs.cooccurrence.length === 0 ? (
                     <div className="text-sm text-muted-foreground">
-                      Sin pares frecuentes con el soporte mínimo actual.
+                      Aún no hay productos que se compren juntos con la frecuencia mínima.
                     </div>
                   ) : (
                     pairs.cooccurrence.slice(0, 5).map((pair) => (
@@ -344,27 +352,37 @@ export function RulesSection() {
                         key={`${pair.source_sku}-${pair.target_sku}`}
                         className="flex items-center justify-between gap-2 rounded-lg border p-2 text-sm">
                         <span>
-                          <span className="font-mono">{pair.source_sku}</span> →{' '}
-                          <span className="font-mono">{pair.target_sku}</span>
+                          <span className="font-medium">
+                            {productNames.get(pair.source_sku) ?? pair.source_sku}
+                          </span>
+                          {' → '}
+                          <span className="font-medium">
+                            {productNames.get(pair.target_sku) ?? pair.target_sku}
+                          </span>
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          lift {pair.lift} · {pair.support} tickets
+                          {pair.support} ventas juntos · {pair.lift}× más de lo esperado
                         </span>
                         <Button
                           variant="outline"
                           size="xs"
                           onClick={() => openPrefilled(pair)}>
-                          Crear boost
+                          Impulsar
                         </Button>
                       </div>
                     ))
                   )}
                 </div>
                 <div className="flex flex-col gap-2">
-                  <div className="text-sm font-medium">Contenido similar</div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-sm font-medium">Similares en atributos</span>
+                    <span className="text-xs text-muted-foreground">
+                      parecidos por nombre, categoría, material o uso
+                    </span>
+                  </div>
                   {pairs.content.length === 0 ? (
                     <div className="text-sm text-muted-foreground">
-                      Sin pares por encima del umbral de similitud.
+                      Aún no hay productos lo bastante parecidos.
                     </div>
                   ) : (
                     pairs.content.slice(0, 5).map((pair) => (
@@ -372,17 +390,22 @@ export function RulesSection() {
                         key={`${pair.source_sku}-${pair.target_sku}`}
                         className="flex items-center justify-between gap-2 rounded-lg border p-2 text-sm">
                         <span>
-                          <span className="font-mono">{pair.source_sku}</span> →{' '}
-                          <span className="font-mono">{pair.target_sku}</span>
+                          <span className="font-medium">
+                            {productNames.get(pair.source_sku) ?? pair.source_sku}
+                          </span>
+                          {' → '}
+                          <span className="font-medium">
+                            {productNames.get(pair.target_sku) ?? pair.target_sku}
+                          </span>
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          similitud {pair.similarity}
+                          {Math.round(pair.similarity * 100)}% de parecido
                         </span>
                         <Button
                           variant="outline"
                           size="xs"
                           onClick={() => openPrefilled(pair)}>
-                          Crear boost
+                          Impulsar
                         </Button>
                       </div>
                     ))

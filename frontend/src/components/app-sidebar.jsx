@@ -15,7 +15,6 @@ import {
   LayoutDashboardIcon,
   PackageIcon,
   ReceiptIcon,
-  SparklesIcon,
   FlaskConicalIcon,
   SlidersHorizontalIcon,
 } from 'lucide-react'
@@ -40,11 +39,6 @@ const navItems = [
     title: 'Compras',
     url: '/compras',
     icon: <ClipboardListIcon />,
-  },
-  {
-    title: 'Recomendaciones',
-    url: '/recomendaciones',
-    icon: <SparklesIcon />,
   },
   {
     title: 'Reglas',

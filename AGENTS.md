@@ -71,7 +71,9 @@ uv run python -m backend.app.scripts.evaluate   # offline recsys evaluation repo
 `frontend/` is a Vite React **JSX** app (no TypeScript) wired to the API, themed with
 shadcn (CLI v4, `radix-nova` preset, Tailwind v4 via `@tailwindcss/vite`). Layout is the
 `dashboard-01` block, adapted: sidebar store-switcher + sections Dashboard, Productos,
-Ventas, Compras, Recomendaciones, Reglas, Evaluación (`src/sections/*.jsx`).
+Ventas, Compras, Reglas, Evaluación (`src/sections/*.jsx`). Recomendaciones is merged
+into Compras: picking products in the ticket auto-fetches suggestions below it.
+`/recomendaciones` redirects to `/compras`.
 
 - Commands: `npm install`, `npm run dev` (5173), `npm run lint`, `npm run build`.
 - `src/lib/api.js` is the only HTTP boundary (`VITE_API_URL`, default

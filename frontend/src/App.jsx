@@ -1,4 +1,4 @@
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 
 import { AppSidebar } from '@/components/app-sidebar'
 import { SiteHeader } from '@/components/site-header'
@@ -9,7 +9,6 @@ import { DashboardSection } from '@/sections/dashboard-section'
 import { EvaluationSection } from '@/sections/evaluation-section'
 import { ProductsSection } from '@/sections/products-section'
 import { PurchasesSection } from '@/sections/purchases-section'
-import { RecommendationsSection } from '@/sections/recommendations-section'
 import { RulesSection } from '@/sections/rules-section'
 import { SalesSection } from '@/sections/sales-section'
 
@@ -18,11 +17,6 @@ const sections = [
   { path: '/productos', title: 'Productos', element: <ProductsSection /> },
   { path: '/ventas', title: 'Ventas', element: <SalesSection /> },
   { path: '/compras', title: 'Compras', element: <PurchasesSection /> },
-  {
-    path: '/recomendaciones',
-    title: 'Recomendaciones',
-    element: <RecommendationsSection />,
-  },
   { path: '/reglas', title: 'Reglas', element: <RulesSection /> },
   { path: '/evaluacion', title: 'Evaluación', element: <EvaluationSection /> },
 ]
@@ -34,6 +28,7 @@ function AppShell() {
         <AppSidebar />
         <SidebarInset>
           <Routes>
+            <Route path="/recomendaciones" element={<Navigate to="/compras" replace />} />
             {sections.map((section) => (
               <Route
                 key={section.path}

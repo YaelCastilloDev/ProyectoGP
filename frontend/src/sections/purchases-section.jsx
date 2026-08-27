@@ -1,6 +1,8 @@
 import * as React from 'react'
 
-import { ErrorState, LoadingRows } from '@/components/states'
+import { ExplainDialog } from '@/sections/explain-dialog'
+import { EmptyState, ErrorState, LoadingRows } from '@/components/states'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -29,13 +31,28 @@ import {
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { useStore } from '@/context/store-context'
-import { createPurchase, getErrorDetail, listProducts } from '@/lib/api'
+import { createPurchase, getErrorDetail, getRecommendations, listProducts } from '@/lib/api'
 import { formatDate, formatMoney } from '@/lib/format'
-import { PlusIcon, ShoppingCartIcon, Trash2Icon } from 'lucide-react'
+import { FlaskConicalIcon, PlusIcon, ShoppingCartIcon, SparklesIcon, Trash2Icon } from 'lucide-react'
 import { toast } from 'sonner'
 
 function emptyLine() {
   return { sku: '', cantidad: '1' }
+}
+
+function SignalBar({ label, value, max }) {
+  const width = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      <span className="w-28 shrink-0 text-muted-foreground">{label}</span>
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+        <div className="h-full rounded-full bg-primary" style={{ width: `${width}%` }} />
+      </div>
+      <span className="w-12 text-right tabular-nums text-muted-foreground">
+        {value.toFixed(2)}
+      </span>
+    </div>
+  )
 }
 
 export function PurchasesSection() {
@@ -46,6 +63,10 @@ export function PurchasesSection() {
   const [lines, setLines] = React.useState([emptyLine()])
   const [busy, setBusy] = React.useState(false)
   const [receipt, setReceipt] = React.useState(null)
+  const [recs, setRecs] = React.useState(null)
+  const [recsBusy, setRecsBusy] = React.useState(false)
+  const [recsError, setRecsError] = React.useState(null)
+  const [explain, setExplain] = React.useState(null)
 
   const load = React.useCallback(async () => {
     setLoading(true)
@@ -63,6 +84,44 @@ export function PurchasesSection() {
     load()
   }, [load])
 
+  const catalog = React.useMemo(
+    () => new Map(products.map((product) => [product.sku, product])),
+    [products]
+  )
+
+  const cartSkus = React.useMemo(
+    () => [...new Set(lines.map((line) => line.sku).filter(Boolean))],
+    [lines]
+  )
+  const cartKey = cartSkus.join(',')
+
+  React.useEffect(() => {
+    if (cartKey === '' || activeStoreId == null) {
+      setRecs(null)
+      setRecsError(null)
+      return
+    }
+    let cancelled = false
+    setRecsBusy(true)
+    setRecsError(null)
+    getRecommendations({ store_id: activeStoreId, cart: cartKey, limit: 5 })
+      .then((data) => {
+        if (!cancelled) setRecs(data)
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setRecs(null)
+          setRecsError(err)
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setRecsBusy(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [cartKey, activeStoreId])
+
   function updateLine(index, field) {
     return (value) => {
       setLines((current) =>
@@ -71,15 +130,28 @@ export function PurchasesSection() {
     }
   }
 
-  const catalog = React.useMemo(
-    () => new Map(products.map((product) => [product.sku, product])),
-    [products]
-  )
+  function addProductLine(sku) {
+    setLines((current) => {
+      const emptyIndex = current.findIndex((line) => !line.sku)
+      if (emptyIndex !== -1) {
+        return current.map((line, i) =>
+          i === emptyIndex ? { ...line, sku, cantidad: '1' } : line
+        )
+      }
+      return [...current, { sku, cantidad: '1' }]
+    })
+    toast.success('Producto agregado al ticket')
+  }
 
   const total = lines.reduce((sum, line) => {
     const product = catalog.get(line.sku)
     return product ? sum + product.precio * (Number(line.cantidad) || 0) : sum
   }, 0)
+
+  const maxSignal = React.useMemo(() => {
+    if (!recs?.items?.length) return 0
+    return Math.max(...recs.items.flatMap((item) => [item.content, item.cooccurrence, item.popularity]))
+  }, [recs])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -130,7 +202,7 @@ export function PurchasesSection() {
         <h2 className="text-lg font-semibold">Nueva compra</h2>
         <p className="text-sm text-muted-foreground">
           Vende desde el inventario compartido. Si una línea supera el stock, todo el ticket se
-          rechaza.
+          rechaza. Al elegir productos, abajo verás sugerencias para ofrecer al cliente.
         </p>
       </div>
 
@@ -248,6 +320,117 @@ export function PurchasesSection() {
         </CardContent>
       </Card>
 
+      {cartSkus.length > 0 && (
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="flex items-center gap-2 text-base font-semibold">
+              <SparklesIcon className="size-4" />
+              Sugerencias para este carrito
+            </h3>
+            {recs && (
+              <span className="text-sm text-muted-foreground">
+                {recs.items.length} sugerencia{recs.items.length === 1 ? '' : 's'} para{' '}
+                <span className="font-mono text-foreground">{recs.seeds.join(', ')}</span>
+              </span>
+            )}
+          </div>
+
+          {recsBusy ? (
+            <LoadingRows rows={2} cols={3} />
+          ) : recsError ? (
+            <ErrorState
+              message={`No se pudieron cargar las sugerencias: ${getErrorDetail(recsError)}`}
+              onRetry={() => {
+                setRecsBusy(true)
+                setRecsError(null)
+                getRecommendations({ store_id: activeStoreId, cart: cartKey, limit: 5 })
+                  .then(setRecs)
+                  .catch(setRecsError)
+                  .finally(() => setRecsBusy(false))
+              }}
+            />
+          ) : recs ? (
+            recs.items.length === 0 ? (
+              <EmptyState message="Sin sugerencias para este carrito (¿se bloquearon los candidatos o no hay stock?)" />
+            ) : (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {recs.items.map((item, index) => (
+                  <Card key={item.sku}>
+                    <CardHeader>
+                      <CardDescription>
+                        #{index + 1} · {item.sku}
+                      </CardDescription>
+                      <CardTitle>{item.nombre}</CardTitle>
+                      <Badge
+                        variant={item.stock === 0 ? 'destructive' : 'secondary'}
+                        className="w-fit">
+                        {item.stock === 0 ? 'Agotado' : `${item.stock} en stock`}
+                      </Badge>
+                    </CardHeader>
+                    <CardContent className="flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Precio</span>
+                        <span className="font-medium tabular-nums">{formatMoney(item.precio)}</span>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <SignalBar
+                          label="Atributos similares"
+                          value={item.content}
+                          max={maxSignal}
+                        />
+                        <SignalBar
+                          label="Comprados juntos"
+                          value={item.cooccurrence}
+                          max={maxSignal}
+                        />
+                        <SignalBar
+                          label="Más vendidos"
+                          value={item.popularity}
+                          max={maxSignal}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Puntaje</span>
+                        <span className="font-semibold tabular-nums">{item.score.toFixed(2)}</span>
+                      </div>
+                      {item.rule_boost !== 1 && (
+                        <Badge variant="outline" className="w-fit">
+                          Regla aplicada ×{item.rule_boost}
+                        </Badge>
+                      )}
+                      {item.reasons.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {item.reasons.map((reason) => (
+                            <Badge key={reason} variant="outline" className="text-xs">
+                              {reason}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setExplain({ source: recs.seeds[0], target: item.sku })}>
+                          <FlaskConicalIcon data-icon="inline-start" />
+                          Explicar
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => addProductLine(item.sku)}>
+                          <PlusIcon data-icon="inline-start" />
+                          Agregar al ticket
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )
+          ) : null}
+        </div>
+      )}
+
       <Dialog open={receipt != null} onOpenChange={(open) => !open && setReceipt(null)}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -277,6 +460,14 @@ export function PurchasesSection() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ExplainDialog
+        open={explain != null}
+        onOpenChange={(open) => !open && setExplain(null)}
+        storeId={activeStoreId}
+        source={explain?.source}
+        target={explain?.target}
+      />
     </div>
   )
 }
