@@ -7,6 +7,7 @@ aplica migraciones y carga los datos de seed.
 Uso:
     python bootstrap.py              # dependencias + migraciones + seed
     python bootstrap.py --fresh      # ademas borra la SQLite local (arranque de cero)
+    python bootstrap.py --no-seed    # ademas salta la carga de productos/ventas
     python bootstrap.py --test       # ademas ejecuta la suite de pruebas
     python bootstrap.py --run        # ademas arranca la API (--host / --port)
     python bootstrap.py --web        # ademas instala las dependencias del frontend
@@ -169,6 +170,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--fresh", action="store_true", help="borra la SQLite local antes de migrar"
     )
+    parser.add_argument(
+        "--no-seed",
+        action="store_true",
+        help="aplica migraciones sin cargar products.csv/sales.csv",
+    )
     parser.add_argument("--test", action="store_true", help="ejecuta pytest despues de inicializar")
     parser.add_argument("--run", action="store_true", help="arranca la API al terminar")
     parser.add_argument(
@@ -219,8 +225,11 @@ def main() -> int:
     step("Aplicando migraciones (aerich upgrade)")
     run(uv + ["run", "aerich", "upgrade"])
 
-    step("Cargando datos de seed (products.csv, sales.csv)")
-    run(uv + ["run", "python", "-m", "backend.app.scripts.seed"])
+    if args.no_seed:
+        info("Seed omitido (--no-seed): la base queda vacia; usa import_data o seed luego")
+    else:
+        step("Cargando datos de seed (products.csv, sales.csv)")
+        run(uv + ["run", "python", "-m", "backend.app.scripts.seed"])
 
     if args.test:
         step("Ejecutando pruebas (pytest)")
