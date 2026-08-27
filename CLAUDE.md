@@ -6,7 +6,7 @@ This file provides guidance to Claude Code when working with code in this reposi
 
 Ferretería multi-tienda (5 stores: Cancún, Chihuahua, CDMX, Monterrey, Mérida) with
 shared inventory, a purchase flow and a hybrid recommendation system. Backend:
-FastAPI + Tortoise-ORM + SQLite. Frontend: React + Vite (to be migrated to TypeScript).
+FastAPI + Tortoise-ORM + SQLite. Frontend: React + Vite (JSX).
 
 ## Tech Stack
 
@@ -20,7 +20,7 @@ FastAPI + Tortoise-ORM + SQLite. Frontend: React + Vite (to be migrated to TypeS
 - **Linting**: ruff (config in `ruff.toml`)
 
 ### Frontend
-- React 18 + Vite 5, Tailwind CSS, react-router-dom, axios (JSX for now)
+- React 19 + Vite 5, Tailwind CSS v4 + shadcn/ui, react-router-dom, axios (JSX)
 
 ## Project Structure
 
@@ -47,17 +47,30 @@ FastAPI + Tortoise-ORM + SQLite. Frontend: React + Vite (to be migrated to TypeS
 ## Development Commands
 
 ```bash
+python bootstrap.py                        # zero-to-running: uv + deps + migrations + seed
+python bootstrap.py --fresh --no-seed      # fresh DB without seed data
+python bootstrap.py --test                 # + run tests
+python bootstrap.py --run                  # + start the API
+python bootstrap.py --web                  # + npm install (frontend deps)
+
 uv sync                                     # install dependencies
 uv run aerich upgrade                       # apply migrations
-uv run python -m backend.app.scripts.seed   # load CSVs into SQLite
+uv run python -m backend.app.scripts.seed   # wipe + reload CSVs into SQLite (destructive)
+uv run python -m backend.app.scripts.import_data  # load CSVs through API endpoints (server must be up)
 uv run uvicorn backend.app.main:app --reload  # API on http://localhost:8000
-uv run pytest                               # run tests
+uv run pytest                               # run tests (55)
 uv run ruff check backend                   # lint
 uv run ruff format backend                  # format
 uv run python -m backend.app.scripts.evaluate  # offline evaluation report
+
+cd frontend && npm install && npm run dev   # frontend on http://localhost:5173
+cd frontend && npm run lint && npm run build
 ```
 
 Run from the repo root. Do not `cd` into backend/.
+
+Postman: import `postman/ferreteria-happy-path.postman_collection.json` and run in
+order (covers the full happy path; store IDs are captured dynamically).
 
 ## Architecture Rules
 
@@ -86,7 +99,9 @@ temporal holdout + leave-one-out, exposed via `/api/evaluation` and the CLI.
 ## Environment & Config
 
 - `backend/.env` (optional): `DATABASE_URL`, `CORS_ORIGINS`, `OTEL_CONSOLE`,
-  `OTLP_ENDPOINT`, CSV paths. Never commit `.env`.
+  `OTLP_ENDPOINT`, `PRODUCTS_CSV`, `SALES_CSV` (see `backend/.env.example`).
+  Never commit `.env`. Note: `OTLP_ENDPOINT` only exports if the optional
+  `opentelemetry-exporter-otlp-proto-grpc` package is installed.
 - Frontend env vars: prefix with `VITE_` in `frontend/.env`.
 
 ## Troubleshooting

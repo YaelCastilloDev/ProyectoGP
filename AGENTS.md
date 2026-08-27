@@ -50,8 +50,9 @@ uv run python -m backend.app.scripts.evaluate   # offline recsys evaluation repo
 
 - Content TF-IDF tokenizes `nombre+categoria+material+uso_recomendado` only —
   `descripcion` is deliberately excluded (empirically lowers HR@5).
-- The engine is rebuilt per request by design (28 products / ~200 rows); don't add
-  caching or "incremental indexing" — it's documented as the production scale-up path.
+- The engine is rebuilt per request by design (28 products / 89 sale rows in 42
+  tickets); don't add caching or "incremental indexing" — it's documented as the
+  production scale-up path.
 - Default blend weights are content-dominant (0.9/0.3/0.1); business-tunable per store.
 - Evaluation default split date is 2026-03-05 (temporal holdout + leave-one-out).
 

@@ -37,7 +37,8 @@ Opciones:
 
 ```bash
 python bootstrap.py --fresh            # ademas borra la SQLite local (arranque de cero)
-python bootstrap.py --test             # ademas ejecuta las 49 pruebas
+python bootstrap.py --no-seed          # ademas salta la carga de productos/ventas
+python bootstrap.py --test             # ademas ejecuta las 55 pruebas
 python bootstrap.py --run              # ademas arranca la API al final (--host/--port)
 python bootstrap.py --web              # ademas instala las dependencias del frontend
 python bootstrap.py --fresh --run --web  # cero + arrancar + frontend listo
@@ -95,8 +96,8 @@ Qué hace, por endpoints de negocio:
    con su fecha original y **sin tocar stock** (el stock solo lo mueven las
    compras). Idempotente: re-ejecutarlo no duplica nada.
 
-Para probarlo desde cero: `python bootstrap.py --fresh` (sin correr el seed),
-arranca la API y ejecuta el script.
+Para probarlo desde cero: `python bootstrap.py --fresh --no-seed` (deja la base
+vacía), arranca la API y ejecuta el script.
 
 ### 5. Equivalente manual (paso a paso, sin bootstrap)
 
@@ -126,11 +127,11 @@ funciona sin importar cuántas veces se haya re-seedado la base.
 | Tortoise-ORM | ORM asíncrono | Tortoise usa **Aerich** para migraciones; Alembic es de SQLAlchemy y no aplica aquí (documentado, no omitido). |
 | SQLite (aiosqlite) | Base de datos | Simplicidad del POC; el puerto de repositorios aísla el cambio a PostgreSQL. |
 | Pydantic v2 + pydantic-settings | Schemas y configuración | |
-| OpenTelemetry | Traces (FastAPI auto + spans manuales) y métricas | Consola opt-in (`OTEL_CONSOLE=true`); OTLP/gRPC vía `OTLP_ENDPOINT`. |
-| React 18 + Vite | Frontend SPA (JSX) | react-router-dom para rutas; `VITE_API_URL` apunta a la API. |
+| OpenTelemetry | Traces (FastAPI auto + spans manuales) y métricas | Consola opt-in (`OTEL_CONSOLE=true`); OTLP/gRPC vía `OTLP_ENDPOINT` requiere instalar el exportador opcional `opentelemetry-exporter-otlp-proto-grpc` (sin él solo se registra un warning). |
+| React 19 + Vite | Frontend SPA (JSX) | react-router-dom para rutas; `VITE_API_URL` apunta a la API. |
 | Tailwind v4 + shadcn/ui | Estilos y componentes | Layout `dashboard-01` adaptado; CLI v4 con preset `radix-nova` y `tsx:false`. |
 | sonner + axios | Toasts y HTTP | `src/lib/api.js` es la única frontera HTTP del frontend. |
-| pytest + pytest-asyncio + httpx | Pruebas | 49 pruebas: unitarias (dominio) e integración (API). |
+| pytest + pytest-asyncio + httpx | Pruebas | 55 pruebas: unitarias (dominio) e integración (API). |
 
 ## Arquitectura por capas
 
@@ -162,6 +163,7 @@ Reglas clave del negocio, aisladas en `domain/`:
 
 | Método | Ruta | Descripción |
 |---|---|---|
+| GET | `/api/health` | Estado del servicio |
 | GET/POST | `/api/products`, `/api/products/{sku}` | CRUD de catálogo |
 | PATCH/DELETE | `/api/products/{sku}` | Actualizar / eliminar |
 | GET/POST | `/api/stores` | Las 5 tiendas / alta de tienda |
@@ -170,7 +172,8 @@ Reglas clave del negocio, aisladas en `domain/`:
 | POST | `/api/stores/{id}/purchases` | Compra multi-línea (atómicamente descuenta inventario) |
 | GET | `/api/recommendations?store_id=&cart=SKU001,SKU004&limit=5` | Recomendaciones con desglose de puntaje |
 | GET | `/api/recommendations/explain?source=&target=&store_id=` | Explicación de un par (similitud, soporte, lift) |
-| GET/POST/DELETE | `/api/rules` | Reglas del negocio (boost/block, globales o por tienda) |
+| GET/POST | `/api/rules` | Reglas del negocio (boost/block, globales o por tienda) |
+| DELETE | `/api/rules/{rule_id}` | Eliminar una regla |
 | GET | `/api/rules/discovered` | Pares descubiertos (lift + similitud de contenido) |
 | GET/PUT | `/api/stores/{id}/weights` | Pesos de mezcla por tienda |
 | GET | `/api/evaluation?split_date=&k=` | Evaluación offline completa |
@@ -198,8 +201,8 @@ recomendación incluye el desglose de su puntaje y razones legibles
 
 Pesos por defecto: `w_cooccurrence=0.3, w_content=0.9, w_popularity=0.1`
 (dominados por contenido, coherente con los datos actuales). El negocio los
-ajusta por tienda; el motor se reconstruye por request (28 productos / ~200
-ventas lo hacen trivial) y siempre refleja ventas y reglas al día. A escala
+ajusta por tienda; el motor se reconstruye por request (28 productos / 89 ventas
+en 42 tickets lo hacen trivial) y siempre refleja ventas y reglas al día. A escala
 productiva esto se vuelve un índice cacheado con reconstrucción incremental.
 
 ## Verificación (evaluación offline)
@@ -218,7 +221,7 @@ Resultados con el dataset entregado (split 2026-03-05, K=5):
 
 ```
 Estrategia             HitRate  Precision  Cobertura
-random                  15.6%      3.1%     100.0%
+random                  25.0%      5.0%     100.0%
 popularity_baseline      9.4%      1.9%      21.4%
 cooccurrence            31.3%      6.3%      92.9%
 content                 59.4%     11.9%     100.0%
