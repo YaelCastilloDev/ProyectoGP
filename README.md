@@ -6,6 +6,8 @@ por el negocio**.
 
 - **Backend**: Python + FastAPI, Tortoise-ORM + Aerich, SQLite, Pydantic v2, Uvicorn,
   OpenTelemetry. Arquitectura por capas (domain / infrastructure / api).
+- **Frontend**: React + Vite (JSX), Tailwind CSS v4 + shadcn/ui (layout `dashboard-01`),
+  react-router, sonner para toasts. `src/lib/api.js` es la única frontera HTTP.
 - **Datos**: `products.csv` (28 productos) y `sales.csv` (42 tickets históricos).
   Mérida no tiene historial de ventas — caso de arranque en frío intencional.
 
@@ -13,7 +15,89 @@ por el negocio**.
 
 ## Cómo ejecutar
 
-Requisitos: Python 3.13 y [uv](https://docs.astral.sh/uv/).
+### 1. Inicialización desde cero (recomendado)
+
+Requisito: **Python 3.13**. El frontend además requiere **Node.js 18+** (solo para `--web`
+y el paso manual de `npm install`):
+
+```bash
+python bootstrap.py --web
+```
+
+Qué hace, en orden:
+
+1. Detecta `uv` y, si no existe, lo instala (`pip install --user uv`) y agrega
+   su directorio al PATH del usuario.
+2. `uv sync` — crea el entorno virtual e instala dependencias.
+3. `uv run aerich upgrade` — aplica migraciones (crea `backend/data/ferreteria.db`).
+4. `uv run python -m backend.app.scripts.seed` — carga `products.csv` y `sales.csv`.
+5. `npm install` (solo con `--web`) — instala las dependencias del frontend.
+
+Opciones:
+
+```bash
+python bootstrap.py --fresh            # ademas borra la SQLite local (arranque de cero)
+python bootstrap.py --test             # ademas ejecuta las 49 pruebas
+python bootstrap.py --run              # ademas arranca la API al final (--host/--port)
+python bootstrap.py --web              # ademas instala las dependencias del frontend
+python bootstrap.py --fresh --run --web  # cero + arrancar + frontend listo
+```
+
+> **Windows**: si el script instaló `uv` o lo agregó al PATH, abre una **terminal
+> nueva** antes de usar el comando `uv` directamente.
+
+### 2. Arrancar la API
+
+```bash
+uv run uvicorn backend.app.main:app --reload
+```
+
+- Docs interactivas: http://localhost:8000/docs
+- Verificar: `uv run pytest`, `uv run ruff check backend`
+
+### 3. Arrancar el frontend
+
+```bash
+cd frontend
+npm install   # solo la primera vez (o python bootstrap.py --web desde la raíz)
+npm run dev
+```
+
+- Panel: http://localhost:5173 (la API debe estar corriendo en :8000)
+- La URL de la API se configura con `VITE_API_URL` (`.env.example`; default
+  `http://localhost:8000/api`). CORS ya permite ese origen.
+- Calidad: `npm run lint`, `npm run build` (desde `frontend/`).
+
+Secciones del panel (ver `frontend/src/sections/`): **Dashboard** (tarjetas de
+resumen + ventas por fecha + ventas recientes), **Productos** (CRUD de catálogo),
+**Ventas** (historial por tienda + importación), **Compras** (ticket multi-línea con
+recibo), **Recomendaciones** (carrito → top-K explicable), **Reglas** (boost/block,
+pesos del blend, parejas descubiertas) y **Evaluación** (reporte offline). El selector
+de tienda del sidebar y el del header comparten el estado (`store-context.jsx`), y
+toda mutación muestra un toast con el mensaje de éxito o el `detail` del error.
+
+### 4. Cargar datos vía endpoints de negocio (alternativa al seed CLI)
+
+El seed CLI escribe directo en SQLite. Si prefieres registrar los datos
+**a través de la app** (operaciones reales de negocio), usa el script de
+importación con el servidor corriendo:
+
+```bash
+uv run python -m backend.app.scripts.import_data
+```
+
+Qué hace, por endpoints de negocio:
+
+1. `GET /api/stores` + `POST /api/stores` — crea las 5 tiendas que falten.
+2. `POST /api/products` por cada fila de `products.csv` (28; 409 = ya existe, se salta).
+3. `POST /api/stores/{id}/sales/import` — registra el histórico de `sales.csv`
+   con su fecha original y **sin tocar stock** (el stock solo lo mueven las
+   compras). Idempotente: re-ejecutarlo no duplica nada.
+
+Para probarlo desde cero: `python bootstrap.py --fresh` (sin correr el seed),
+arranca la API y ejecuta el script.
+
+### 5. Equivalente manual (paso a paso, sin bootstrap)
 
 ```bash
 uv sync                       # instala dependencias
@@ -22,12 +106,17 @@ uv run python -m backend.app.scripts.seed   # carga products.csv y sales.csv
 uv run uvicorn backend.app.main:app --reload  # API en http://localhost:8000
 ```
 
-- Docs interactivas: http://localhost:8000/docs
-- Verificar: `uv run pytest`, `uv run ruff check backend`
-
 > Si el archivo SQLite no existe al arrancar, el servidor genera el esquema
 > automáticamente (POC-friendly). La fuente de verdad de esquema son las
 > migraciones Aerich (`backend/migrations/`).
+
+### 6. Probar con Postman
+
+Importa `postman/ferreteria-happy-path.postman_collection.json` y ejecuta la
+colección en orden: cubre el happy path completo (catálogo, compra, histórico,
+recomendaciones, reglas, pesos y evaluación) con aserciones de status code.
+Los IDs de tienda se capturan dinámicamente de `GET /api/stores`, así que
+funciona sin importar cuántas veces se haya re-seedado la base.
 
 ## Stack y decisiones
 
@@ -37,6 +126,9 @@ uv run uvicorn backend.app.main:app --reload  # API en http://localhost:8000
 | SQLite (aiosqlite) | Base de datos | Simplicidad del POC; el puerto de repositorios aísla el cambio a PostgreSQL. |
 | Pydantic v2 + pydantic-settings | Schemas y configuración | |
 | OpenTelemetry | Traces (FastAPI auto + spans manuales) y métricas | Consola opt-in (`OTEL_CONSOLE=true`); OTLP/gRPC vía `OTLP_ENDPOINT`. |
+| React 18 + Vite | Frontend SPA (JSX) | react-router-dom para rutas; `VITE_API_URL` apunta a la API. |
+| Tailwind v4 + shadcn/ui | Estilos y componentes | Layout `dashboard-01` adaptado; CLI v4 con preset `radix-nova` y `tsx:false`. |
+| sonner + axios | Toasts y HTTP | `src/lib/api.js` es la única frontera HTTP del frontend. |
 | pytest + pytest-asyncio + httpx | Pruebas | 49 pruebas: unitarias (dominio) e integración (API). |
 
 ## Arquitectura por capas
@@ -71,8 +163,9 @@ Reglas clave del negocio, aisladas en `domain/`:
 |---|---|---|
 | GET/POST | `/api/products`, `/api/products/{sku}` | CRUD de catálogo |
 | PATCH/DELETE | `/api/products/{sku}` | Actualizar / eliminar |
-| GET | `/api/stores` | Las 5 tiendas |
+| GET/POST | `/api/stores` | Las 5 tiendas / alta de tienda |
 | GET | `/api/stores/{id}/sales` | Historial de ventas por tienda |
+| POST | `/api/stores/{id}/sales/import` | Importar histórico de ventas (insert-only, no toca stock, idempotente por ticket) |
 | POST | `/api/stores/{id}/purchases` | Compra multi-línea (atómicamente descuenta inventario) |
 | GET | `/api/recommendations?store_id=&cart=SKU001,SKU004&limit=5` | Recomendaciones con desglose de puntaje |
 | GET | `/api/recommendations/explain?source=&target=&store_id=` | Explicación de un par (similitud, soporte, lift) |
@@ -149,9 +242,36 @@ Ejecutar: `uv run python -m backend.app.scripts.evaluate` o
 
 ## Frontend
 
-Pendiente (siguiente etapa): React + TypeScript con selector de tienda, catálogo
-con CRUD, carrito/compra con panel de recomendaciones explicables, pantalla de
-relaciones (boost/block, pesos por tienda) y vista de evaluación.
+React + Vite en JSX (sin TypeScript), Tailwind CSS v4 y shadcn/ui (layout `dashboard-01`
+adaptado). Estructura:
+
+```
+frontend/src/
+├── lib/api.js                 # axios: única frontera HTTP (VITE_API_URL)
+├── lib/format.js              # formatos MXN, fechas, porcentajes
+├── context/store-context.jsx  # tiendas + tienda activa (compartida en toda la app)
+├── components/
+│   ├── app-sidebar.jsx        # sidebar: marca, selector de tienda, navegación
+│   ├── site-header.jsx        # breadcrumb + selector de tienda
+│   ├── sales-chart.jsx        # ventas por fecha (7d/30d/todo)
+│   ├── data-table.jsx         # tabla genérica con paginación
+│   └── ui/                    # componentes shadcn generados (JSX)
+├── sections/                  # Dashboard, Productos, Ventas, Compras,
+│                              # Recomendaciones, Reglas, Evaluación
+└── App.jsx / main.jsx         # shell (SidebarProvider + rutas) + Toaster
+```
+
+Comportamiento:
+
+- Selector de tienda global (sidebar y header); la tienda activa se persiste en
+  `localStorage`. "Nueva tienda" crea una vía `POST /api/stores`.
+- Todas las mutaciones (CRUD de productos, compras, import de ventas, reglas, pesos)
+  muestran toasts sonner: éxito o el `detail` del error del backend (p. ej. el 409 de
+  stock insuficiente en compras).
+- Estados de carga (skeletons), error (con reintentar) y vacío en todas las secciones
+  (Mérida sin ventas es el caso vacío intencional).
+- `npm run dev` (5173), `npm run lint`, `npm run build`. La API debe correr en :8000;
+  para regenerar componentes: `npx shadcn@latest add <component>` (emite `.jsx`).
 
 ## Qué quedaría pendiente a escala productiva
 
