@@ -135,7 +135,7 @@ export function EvaluationSection() {
     <div className="flex flex-col gap-4 p-4 lg:p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold">Evaluación offline</h2>
+          <h2 className="text-lg font-semibold">Evaluación</h2>
           <p className="text-sm text-muted-foreground">
             Simula cómo habría recomendado el sistema en el pasado: entrena con las compras
             anteriores a la fecha de corte y mide si lo sugerido coincidió con lo que el

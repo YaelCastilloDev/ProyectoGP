@@ -373,44 +373,6 @@ export function RulesSection() {
                     ))
                   )}
                 </div>
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-sm font-medium">Similares en atributos</span>
-                    <span className="text-xs text-muted-foreground">
-                      parecidos por nombre, categoría, material o uso
-                    </span>
-                  </div>
-                  {pairs.content.length === 0 ? (
-                    <div className="text-sm text-muted-foreground">
-                      Aún no hay productos lo bastante parecidos.
-                    </div>
-                  ) : (
-                    pairs.content.slice(0, 5).map((pair) => (
-                      <div
-                        key={`${pair.source_sku}-${pair.target_sku}`}
-                        className="flex items-center justify-between gap-2 rounded-lg border p-2 text-sm">
-                        <span>
-                          <span className="font-medium">
-                            {productNames.get(pair.source_sku) ?? pair.source_sku}
-                          </span>
-                          {' → '}
-                          <span className="font-medium">
-                            {productNames.get(pair.target_sku) ?? pair.target_sku}
-                          </span>
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {Math.round(pair.similarity * 100)}% de parecido
-                        </span>
-                        <Button
-                          variant="outline"
-                          size="xs"
-                          onClick={() => openPrefilled(pair)}>
-                          Impulsar
-                        </Button>
-                      </div>
-                    ))
-                  )}
-                </div>
               </>
             )}
           </CardContent>
