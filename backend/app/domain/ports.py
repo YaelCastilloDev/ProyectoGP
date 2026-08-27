@@ -43,6 +43,10 @@ class SaleRepository(Protocol):
 
     async def all_rows(self) -> list[SaleRow]: ...
 
+    async def existing_ticket_ids(self, store_id: int, ticket_ids: list[str]) -> set[str]: ...
+
+    async def bulk_create(self, rows: list[SaleRow]) -> int: ...
+
 
 class PurchaseRepository(Protocol):
     """Persists a whole ticket atomically, enforcing the shared-inventory rule.

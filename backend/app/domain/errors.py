@@ -31,6 +31,14 @@ class DuplicateSku(DomainError):
         super().__init__(f"El SKU ya existe: {sku}")
 
 
+class DuplicateStore(DomainError):
+    status_code = 409
+
+    def __init__(self, nombre: str) -> None:
+        self.nombre = nombre
+        super().__init__(f"La tienda ya existe: {nombre}")
+
+
 class InsufficientStock(DomainError):
     """Raised when a purchase cannot be fully satisfied by shared inventory."""
 

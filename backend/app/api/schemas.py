@@ -38,6 +38,10 @@ class StoreOut(BaseModel):
     nombre: str
 
 
+class StoreCreate(BaseModel):
+    nombre: str = Field(min_length=1, max_length=64)
+
+
 class SaleOut(BaseModel):
     ticket_id: str
     sku: str
@@ -140,3 +144,18 @@ class SaleHistoryOut(BaseModel):
     limit: int
     offset: int
     rows: list[SaleOut]
+
+
+class SaleImportRow(BaseModel):
+    ticket_id: str = Field(min_length=1, max_length=32)
+    sku: str = Field(min_length=1, max_length=32)
+    cantidad: int = Field(gt=0)
+    fecha: date
+
+
+class SaleImportIn(BaseModel):
+    rows: list[SaleImportRow] = Field(min_length=1)
+
+
+class SaleImportOut(BaseModel):
+    imported: int

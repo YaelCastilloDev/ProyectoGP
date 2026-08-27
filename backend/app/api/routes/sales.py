@@ -1,10 +1,17 @@
-"""Sales history per store."""
+"""Sales history per store, plus history import (store onboarding)."""
 
 from fastapi import APIRouter, Depends, Query
 
 from backend.app.api.deps import get_product_repo, get_sale_repo, get_store_repo
-from backend.app.api.schemas import SaleHistoryOut, SaleOut
+from backend.app.api.schemas import (
+    SaleHistoryOut,
+    SaleImportIn,
+    SaleImportOut,
+    SaleOut,
+)
+from backend.app.domain.entities import SaleRow
 from backend.app.domain.errors import StoreNotFound
+from backend.app.domain.services.sales_history import SalesHistoryService
 from backend.app.infrastructure.repositories.product_repo import TortoiseProductRepository
 from backend.app.infrastructure.repositories.sale_repo import TortoiseSaleRepository
 from backend.app.infrastructure.repositories.store_repo import TortoiseStoreRepository
@@ -43,3 +50,27 @@ async def list_sales(
     return SaleHistoryOut(
         store_id=store_id, total=len(enriched), limit=limit, offset=offset, rows=enriched
     )
+
+
+@router.post("/stores/{store_id}/sales/import", response_model=SaleImportOut, status_code=201)
+async def import_sales_history(
+    store_id: int,
+    payload: SaleImportIn,
+    stores: TortoiseStoreRepository = Depends(get_store_repo),
+    products: TortoiseProductRepository = Depends(get_product_repo),
+    sales: TortoiseSaleRepository = Depends(get_sale_repo),
+):
+    """Import a store's historical tickets. Insert-only: never touches stock."""
+    service = SalesHistoryService(stores, products, sales)
+    rows = [
+        SaleRow(
+            ticket_id=row.ticket_id,
+            sku=row.sku,
+            store_id=store_id,
+            cantidad=row.cantidad,
+            fecha=row.fecha,
+        )
+        for row in payload.rows
+    ]
+    imported = await service.import_rows(store_id, rows)
+    return SaleImportOut(imported=imported)
