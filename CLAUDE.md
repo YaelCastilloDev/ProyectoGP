@@ -4,117 +4,93 @@ This file provides guidance to Claude Code when working with code in this reposi
 
 ## Project Overview
 
-A full-stack starter template combining React + Vite for the frontend with FastAPI for the backend. Designed for rapid prototyping -- hackathons, college projects, and quick MVPs. Includes comprehensive README with setup and usage documentation.
+Ferretería multi-tienda (5 stores: Cancún, Chihuahua, CDMX, Monterrey, Mérida) with
+shared inventory, a purchase flow and a hybrid recommendation system. Backend:
+FastAPI + Tortoise-ORM + SQLite. Frontend: React + Vite (to be migrated to TypeScript).
 
 ## Tech Stack
 
-### Frontend
-- **Language**: TypeScript
-- **Framework**: React 18 + Vite 5
-- **Routing**: React Router
-- **Styling**: Tailwind CSS
-- **Linting**: ESLint with Vite + React plugins
-
 ### Backend
-- **Language**: Python 3
-- **Framework**: FastAPI 0.115.5
-- **ORM**: SQLAlchemy
-- **Database**: PostgreSQL
-- **Config**: python-dotenv
+- **Language**: Python 3.13
+- **Framework**: FastAPI, Uvicorn
+- **ORM**: Tortoise-ORM (+ aiosqlite), migrations with **Aerich**
+- **Validation/config**: Pydantic v2 + pydantic-settings
+- **Observability**: OpenTelemetry (traces + metrics)
+- **Testing**: pytest + pytest-asyncio + httpx
+- **Linting**: ruff (config in `ruff.toml`)
+
+### Frontend
+- React 18 + Vite 5, Tailwind CSS, react-router-dom, axios (JSX for now)
 
 ## Project Structure
 
 ```
-react-vite-fastapi-starter/
-├── package.json                 # Root -- concurrently runner
-├── frontend/
-│   ├── package.json             # Vite + React dependencies
-│   ├── vite.config.ts           # Vite configuration
-│   ├── src/
-│   │   ├── components/          # React components
-│   │   ├── pages/               # Page components
-│   │   └── App.tsx              # Root component
-│   └── public/                  # Static assets
+├── products.csv / sales.csv        # Seed data (catalog + sales history)
+├── pyproject.toml                  # uv project (deps, aerich, pytest config)
 ├── backend/
-│   ├── requirements.txt         # Python dependencies
+│   ├── migrations/                 # Aerich migrations
+│   ├── data/ferreteria.db          # SQLite (generated, gitignored)
 │   ├── app/
-│   │   ├── main.py              # FastAPI entry point
-│   │   ├── models/              # SQLAlchemy models
-│   │   └── routes/              # API route handlers
-│   └── .env                     # Backend environment variables
-├── README.md                    # Comprehensive setup documentation
-└── .github/workflows/
-    └── claude.yml               # Claude Code Actions workflow
+│   │   ├── main.py                 # App factory + lifespan + CORS + OTel
+│   │   ├── config.py               # pydantic-settings
+│   │   ├── telemetry.py            # OpenTelemetry setup
+│   │   ├── domain/                 # PURE business rules (no framework imports)
+│   │   │   ├── entities.py, ports.py, errors.py
+│   │   │   └── services/           # catalog, inventory, purchasing, recommender/, evaluation
+│   │   ├── infrastructure/         # Tortoise models, repositories, CSV seeding
+│   │   ├── api/                    # routes/, schemas.py, deps.py
+│   │   └── scripts/                # seed.py, evaluate.py
+│   └── tests/                      # unit/ + integration/
+└── frontend/
 ```
 
 ## Development Commands
 
-### Full-Stack
 ```bash
-npm run dev:all              # Run both frontend + backend
+uv sync                                     # install dependencies
+uv run aerich upgrade                       # apply migrations
+uv run python -m backend.app.scripts.seed   # load CSVs into SQLite
+uv run uvicorn backend.app.main:app --reload  # API on http://localhost:8000
+uv run pytest                               # run tests
+uv run ruff check backend                   # lint
+uv run ruff format backend                  # format
+uv run python -m backend.app.scripts.evaluate  # offline evaluation report
 ```
 
-### Frontend
-```bash
-cd frontend
-npm install
-npm run dev                  # Vite dev server (http://localhost:5173)
-npm run build
-npm run lint
-npm run preview
-```
+Run from the repo root. Do not `cd` into backend/.
 
-### Backend (uv)
-```bash
-uv sync                          # Install/sync Python dependencies
-uv run uvicorn app.main:app --reload    # FastAPI (http://localhost:8000)
-uv add <package>                  # Add new dependency
-```
+## Architecture Rules
 
-### Code Quality (ruff)
-```bash
-uv run ruff format .
-uv run ruff check .
-uv run ruff check --fix .
-```
+- Layered architecture: `domain` (business rules, zero framework imports) →
+  `infrastructure` (Tortoise repos implementing domain ports) → `api` (FastAPI
+  boundary with Pydantic schemas).
+- Business invariants live in the domain layer:
+  - Inventory is never oversold: purchases use conditional
+    `UPDATE ... WHERE stock >= qty` in a single transaction, all-or-nothing.
+  - Recommendations only include in-stock products, never items already in the cart.
+- Tortoise 1.1.x requires `Tortoise.init(..., _enable_global_fallback=True)` so
+  lifespan and request tasks share connections.
+- Tortoise `execute_query` returns `(affected_count, rows)` — mind the tuple order.
+- Aerich (not Alembic) is the migration tool for Tortoise.
+- ruff: `Query()`/`Depends()` in FastAPI defaults and `*NotFound` exception names
+  are intentionally allowed (see `ruff.toml` ignores).
 
+## Recommendation System
+
+Hybrid statistical engine (see README): co-occurrence (ticket-incidence cosine) +
+content TF-IDF (nombre+categoria+material+uso, NOT descripcion) + per-store
+popularity, blended with per-store weights; business rules (boost/block) applied
+before ranking. Every recommendation carries its score decomposition. Verification:
+temporal holdout + leave-one-out, exposed via `/api/evaluation` and the CLI.
 
 ## Environment & Config
 
-### Backend (.env)
-```bash
-DATABASE_URL=postgresql://user:pass@localhost:5432/dbname
-SECRET_KEY=<your-secret-key>
-```
-
-- Frontend environment variables: prefix with `VITE_` in `frontend/.env`
-- Never commit `.env` files
-
-## Code Style & Standards
-
-### Frontend
-- TypeScript strict mode
-- ESLint with Vite + React plugins
-- Tailwind CSS utility classes
-- Component-based architecture with React Router
-
-### Backend
-- FastAPI dependency injection
-- SQLAlchemy ORM patterns
-- Async route handlers
-- No Python linter configured (consider adding ruff)
-
-## Architecture Notes
-
-- Frontend proxies API requests to backend (configured in Vite)
-- Backend serves REST API endpoints
-- SQLAlchemy handles database schema and queries
-- `concurrently` package runs both frontend and backend from root `package.json`
-- Template is intentionally minimal -- extend as needed
+- `backend/.env` (optional): `DATABASE_URL`, `CORS_ORIGINS`, `OTEL_CONSOLE`,
+  `OTLP_ENDPOINT`, CSV paths. Never commit `.env`.
+- Frontend env vars: prefix with `VITE_` in `frontend/.env`.
 
 ## Troubleshooting
 
-- CORS errors: Check FastAPI CORS middleware configuration
-- Database connection: Verify PostgreSQL is running and DATABASE_URL is correct
-- Frontend proxy issues: Check Vite proxy config in `vite.config.ts`
-- Port conflicts: Frontend uses 5173, backend uses 8000
+- CORS errors: check `cors_origins` in Settings.
+- DB connection: SQLite file under `backend/data/ferreteria.db`.
+- Port conflicts: frontend 5173, backend 8000.
