@@ -1,0 +1,305 @@
+{
+  "info": {
+    "name": "Ferreteria Multi-Tienda — Happy Path",
+    "description": "Peticiones de camino feliz para el POC (inventario compartido + recomendador híbrido).\n\nPrerrequisitos:\n1. Servidor corriendo: uv run uvicorn backend.app.main:app --reload  (puerto 8000)\n2. Base de datos migrada y con datos: uv run aerich upgrade && uv run python -m backend.app.scripts.seed\n\nNotas de uso:\n- Ejecuta la colección en orden (Run Collection): el flujo crea un producto demo (SKU099) y una regla, y al final los elimina.\n- La variable {{ruleId}} se captura automáticamente del POST /api/rules.\n- {{storeId}} por defecto es 1 (Cancún). Para ver arranque en frío cambia a 5 (Mérida, sin historial de ventas) con cart=SKU011.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8000" },
+    { "key": "storeId", "value": "1" },
+    { "key": "demoSku", "value": "SKU099" },
+    { "key": "ruleId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "0. Setup",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/health", "host": ["{{baseUrl}}"], "path": ["api", "health"] }
+          }
+        },
+        {
+          "name": "Listar tiendas (5)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/stores", "host": ["{{baseUrl}}"], "path": ["api", "stores"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Catálogo (CRUD)",
+      "item": [
+        {
+          "name": "Listar productos (28)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/products", "host": ["{{baseUrl}}"], "path": ["api", "products"] }
+          }
+        },
+        {
+          "name": "Ver producto SKU001",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/products/SKU001",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "SKU001"]
+            }
+          }
+        },
+        {
+          "name": "Crear producto demo (SKU099)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/products", "host": ["{{baseUrl}}"], "path": ["api", "products"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"{{demoSku}}\",\n  \"nombre\": \"Martillo demo\",\n  \"descripcion\": \"Producto de prueba para el happy path\",\n  \"categoria\": \"herramienta\",\n  \"material\": \"acero\",\n  \"uso_recomendado\": \"general\",\n  \"precio\": 150,\n  \"stock\": 25\n}"
+            }
+          }
+        },
+        {
+          "name": "Actualizar precio del demo (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/products/{{demoSku}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "{{demoSku}}"]
+            },
+            "body": { "mode": "raw", "raw": "{\n  \"precio\": 160\n}" }
+          }
+        },
+        {
+          "name": "Eliminar producto demo (DELETE)",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/products/{{demoSku}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "{{demoSku}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Ventas y compras",
+      "item": [
+        {
+          "name": "Historial de ventas de la tienda",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/stores/{{storeId}}/sales?limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "stores", "{{storeId}}", "sales"],
+              "query": [{ "key": "limit", "value": "20" }]
+            }
+          }
+        },
+        {
+          "name": "Comprar (multi-línea, descuenta inventario)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/stores/{{storeId}}/purchases",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "stores", "{{storeId}}", "purchases"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    { \"sku\": \"SKU001\", \"cantidad\": 1 },\n    { \"sku\": \"SKU004\", \"cantidad\": 2 }\n  ]\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Recomendaciones",
+      "item": [
+        {
+          "name": "Recomendar dado carrito (SKU001, SKU004)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/recommendations?store_id={{storeId}}&cart=SKU001,SKU004&limit=5",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "recommendations"],
+              "query": [
+                { "key": "store_id", "value": "{{storeId}}" },
+                { "key": "cart", "value": "SKU001,SKU004" },
+                { "key": "limit", "value": "5" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Recomendación arranque en frío (Mérida, store 5, SKU011)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/recommendations?store_id=5&cart=SKU011&limit=5",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "recommendations"],
+              "query": [
+                { "key": "store_id", "value": "5" },
+                { "key": "cart", "value": "SKU011" },
+                { "key": "limit", "value": "5" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Explicar par (SKU001 → SKU004)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/recommendations/explain?store_id={{storeId}}&source=SKU001&target=SKU004",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "recommendations", "explain"],
+              "query": [
+                { "key": "store_id", "value": "{{storeId}}" },
+                { "key": "source", "value": "SKU001" },
+                { "key": "target", "value": "SKU004" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Pares descubiertos (lift + similitud)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/rules/discovered?min_support=2&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "rules", "discovered"],
+              "query": [
+                { "key": "min_support", "value": "2" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Reglas y pesos del negocio",
+      "item": [
+        {
+          "name": "Listar reglas",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/rules", "host": ["{{baseUrl}}"], "path": ["api", "rules"] }
+          }
+        },
+        {
+          "name": "Crear regla boost (SKU017 → SKU018)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set(\"ruleId\", pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/rules", "host": ["{{baseUrl}}"], "path": ["api", "rules"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source_sku\": \"SKU017\",\n  \"target_sku\": \"SKU018\",\n  \"action\": \"boost\",\n  \"weight\": 2.0,\n  \"note\": \"bundling taladro-broca (demo)\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Ver recomendación con la regla activa (SKU017)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/recommendations?store_id={{storeId}}&cart=SKU017&limit=5",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "recommendations"],
+              "query": [
+                { "key": "store_id", "value": "{{storeId}}" },
+                { "key": "cart", "value": "SKU017" },
+                { "key": "limit", "value": "5" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Eliminar regla (usa {{ruleId}})",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/rules/{{ruleId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "rules", "{{ruleId}}"]
+            }
+          }
+        },
+        {
+          "name": "Ver pesos de la tienda",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/stores/{{storeId}}/weights",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "stores", "{{storeId}}", "weights"]
+            }
+          }
+        },
+        {
+          "name": "Ajustar pesos de la tienda (PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/stores/{{storeId}}/weights",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "stores", "{{storeId}}", "weights"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"w_cooccurrence\": 0.3,\n  \"w_content\": 0.9,\n  \"w_popularity\": 0.1\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Evaluación",
+      "item": [
+        {
+          "name": "Evaluación offline (split 2026-03-05, K=5)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/evaluation?split_date=2026-03-05&k=5",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "evaluation"],
+              "query": [
+                { "key": "split_date", "value": "2026-03-05" },
+                { "key": "k", "value": "5" }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
