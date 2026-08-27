@@ -1,12 +1,13 @@
 {
   "info": {
     "name": "Ferreteria Multi-Tienda — Happy Path",
-    "description": "Peticiones de camino feliz para el POC (inventario compartido + recomendador híbrido).\n\nPrerrequisitos:\n1. Servidor corriendo: uv run uvicorn backend.app.main:app --reload  (puerto 8000)\n2. Base de datos migrada y con datos: uv run aerich upgrade && uv run python -m backend.app.scripts.seed\n\nNotas de uso:\n- Ejecuta la colección en orden (Run Collection): el flujo crea un producto demo (SKU099) y una regla, y al final los elimina.\n- La variable {{ruleId}} se captura automáticamente del POST /api/rules.\n- {{storeId}} por defecto es 1 (Cancún). Para ver arranque en frío cambia a 5 (Mérida, sin historial de ventas) con cart=SKU011.",
+    "description": "Peticiones de camino feliz para el POC (inventario compartido + recomendador híbrido).\n\nPrerrequisitos:\n1. Servidor corriendo: uv run uvicorn backend.app.main:app --reload  (puerto 8000)\n2. Datos cargados. Opciones:\n   a) Seed CLI (directo a SQLite): uv run python -m backend.app.scripts.seed\n   b) Vía endpoints de negocio: uv run python -m backend.app.scripts.import_data\n\nNotas de uso:\n- Ejecuta la colección en orden (Run Collection): el flujo crea un producto demo (SKU099) y una regla, y al final los elimina.\n- {{storeId}} y {{storeMx}} se capturan automáticamente de GET /api/stores (funciona aunque los IDs no empiecen en 1).\n- Cada request incluye una aserción de status code para ver PASS/FAIL en el Collection Runner.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:8000" },
-    { "key": "storeId", "value": "1" },
+    { "key": "storeId", "value": "" },
+    { "key": "storeMx", "value": "" },
     { "key": "demoSku", "value": "SKU099" },
     { "key": "ruleId", "value": "" }
   ],
@@ -16,13 +17,43 @@
       "item": [
         {
           "name": "Health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('status ok', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "url": { "raw": "{{baseUrl}}/api/health", "host": ["{{baseUrl}}"], "path": ["api", "health"] }
           }
         },
         {
-          "name": "Listar tiendas (5)",
+          "name": "Listar tiendas (captura storeId y storeMx)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const stores = pm.response.json();",
+                  "pm.test('hay tiendas', () => pm.expect(stores.length).to.be.greaterThan(0));",
+                  "if (stores.length > 0) {",
+                  "    pm.collectionVariables.set('storeId', stores[0].id);",
+                  "    const merida = stores.find(s => s.nombre === 'Mérida');",
+                  "    pm.collectionVariables.set('storeMx', merida ? merida.id : stores[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "url": { "raw": "{{baseUrl}}/api/stores", "host": ["{{baseUrl}}"], "path": ["api", "stores"] }
@@ -35,6 +66,15 @@
       "item": [
         {
           "name": "Listar productos (28)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "url": { "raw": "{{baseUrl}}/api/products", "host": ["{{baseUrl}}"], "path": ["api", "products"] }
@@ -42,6 +82,15 @@
         },
         {
           "name": "Ver producto SKU001",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "url": {
@@ -53,6 +102,15 @@
         },
         {
           "name": "Crear producto demo (SKU099)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 201', () => pm.response.to.have.status(201));"]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
@@ -65,6 +123,15 @@
         },
         {
           "name": "Actualizar precio del demo (PATCH)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
           "request": {
             "method": "PATCH",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
@@ -78,6 +145,15 @@
         },
         {
           "name": "Eliminar producto demo (DELETE)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 204', () => pm.response.to.have.status(204));"]
+              }
+            }
+          ],
           "request": {
             "method": "DELETE",
             "url": {
@@ -94,6 +170,15 @@
       "item": [
         {
           "name": "Historial de ventas de la tienda",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "url": {
@@ -106,6 +191,15 @@
         },
         {
           "name": "Comprar (multi-línea, descuenta inventario)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 201', () => pm.response.to.have.status(201));"]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
@@ -119,6 +213,31 @@
               "raw": "{\n  \"items\": [\n    { \"sku\": \"SKU001\", \"cantidad\": 1 },\n    { \"sku\": \"SKU004\", \"cantidad\": 2 }\n  ]\n}"
             }
           }
+        },
+        {
+          "name": "Importar histórico de ventas (ejemplo, no toca stock)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 201', () => pm.response.to.have.status(201));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/stores/{{storeId}}/sales/import",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "stores", "{{storeId}}", "sales", "import"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rows\": [\n    { \"ticket_id\": \"VIMP1\", \"sku\": \"SKU001\", \"cantidad\": 1, \"fecha\": \"2026-01-15\" }\n  ]\n}"
+            }
+          }
         }
       ]
     },
@@ -127,6 +246,15 @@
       "item": [
         {
           "name": "Recomendar dado carrito (SKU001, SKU004)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "url": {
@@ -142,15 +270,24 @@
           }
         },
         {
-          "name": "Recomendación arranque en frío (Mérida, store 5, SKU011)",
+          "name": "Recomendación arranque en frío (Mérida, sin historial)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/api/recommendations?store_id=5&cart=SKU011&limit=5",
+              "raw": "{{baseUrl}}/api/recommendations?store_id={{storeMx}}&cart=SKU011&limit=5",
               "host": ["{{baseUrl}}"],
               "path": ["api", "recommendations"],
               "query": [
-                { "key": "store_id", "value": "5" },
+                { "key": "store_id", "value": "{{storeMx}}" },
                 { "key": "cart", "value": "SKU011" },
                 { "key": "limit", "value": "5" }
               ]
@@ -159,6 +296,15 @@
         },
         {
           "name": "Explicar par (SKU001 → SKU004)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "url": {
@@ -175,6 +321,15 @@
         },
         {
           "name": "Pares descubiertos (lift + similitud)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "url": {
@@ -195,6 +350,15 @@
       "item": [
         {
           "name": "Listar reglas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "url": { "raw": "{{baseUrl}}/api/rules", "host": ["{{baseUrl}}"], "path": ["api", "rules"] }
@@ -208,8 +372,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
                   "if (pm.response.code === 201) {",
-                  "    pm.collectionVariables.set(\"ruleId\", pm.response.json().id);",
+                  "    pm.collectionVariables.set('ruleId', pm.response.json().id);",
                   "}"
                 ]
               }
@@ -227,6 +392,15 @@
         },
         {
           "name": "Ver recomendación con la regla activa (SKU017)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "url": {
@@ -243,6 +417,15 @@
         },
         {
           "name": "Eliminar regla (usa {{ruleId}})",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 204', () => pm.response.to.have.status(204));"]
+              }
+            }
+          ],
           "request": {
             "method": "DELETE",
             "url": {
@@ -254,6 +437,15 @@
         },
         {
           "name": "Ver pesos de la tienda",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "url": {
@@ -265,6 +457,15 @@
         },
         {
           "name": "Ajustar pesos de la tienda (PUT)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
           "request": {
             "method": "PUT",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
@@ -286,6 +487,15 @@
       "item": [
         {
           "name": "Evaluación offline (split 2026-03-05, K=5)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "url": {
